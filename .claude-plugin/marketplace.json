@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "voice-agent-skills",
+  "owner": {
+    "name": "martyn-ukrainian",
+    "url": "https://github.com/martyn-ukrainian"
+  },
+  "description": "Skills for building and driving local, terminal-based voice agents on Pipecat (STT → LLM → TTS), plus a flow generator for tutor/lesson/interview sessions.",
+  "plugins": [
+    {
+      "name": "voice-agent-skills",
+      "source": "./",
+      "description": "Scaffold a terminal voice agent (LocalAudioTransport, no browser) and generate structured tutor/lesson/interview flow files for it.",
+      "license": "MIT",
+      "keywords": ["voice", "pipecat", "stt", "tts", "llm", "tutor", "cli", "agent"]
+    }
+  ]
+}

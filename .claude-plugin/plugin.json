@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "voice-agent-skills",
+  "description": "Scaffold a terminal voice agent (Pipecat, LocalAudioTransport) and generate tutor/lesson/interview flow files for it.",
+  "version": "0.1.0",
+  "homepage": "https://github.com/martyn-ukrainian/voice-agent-skills",
+  "repository": "https://github.com/martyn-ukrainian/voice-agent-skills",
+  "license": "MIT",
+  "keywords": ["voice", "pipecat", "stt", "tts", "llm", "tutor", "cli", "agent"]
+}

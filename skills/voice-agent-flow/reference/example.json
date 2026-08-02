@@ -1,0 +1,52 @@
+{
+  "mode": "tutor",
+  "topic": "rag",
+  "difficulty": "medium",
+  "duration_min": 30,
+  "language": "en",
+  "interviewer_persona": "friendly_tutor",
+  "opening": "Hi! Today I'm your tutor — we'll work through RAG step by step. I'll ask, you answer as best you can, and then I'll explain how it really works. Don't be afraid to get things wrong — that's exactly how we learn. If you don't know an answer, just say 'I don't know' and I'll explain. When you've finished a thought, say 'over'. Ready? Then, first question.",
+  "questions": [
+    {
+      "id": "q1",
+      "text": "In your own words, why would you even need RAG if you already have a large language model?",
+      "follow_ups": [
+        "What does the model NOT know without RAG?",
+        "How is this different from just fine-tuning the model on your own data?"
+      ],
+      "time_budget_sec": 180,
+      "correction_template": "RAG is needed because a model only knows what was in its training data up to its cutoff date, and it has no access to your private or fresh documents. RAG injects relevant context into the prompt at generation time, so the answer is grounded in up-to-date sources rather than only the model's 'memory'. Unlike fine-tuning, RAG doesn't change the model's weights — you can update the data instantly just by changing what's in the index."
+    },
+    {
+      "id": "q2",
+      "text": "Imagine we're indexing documents. What is a chunk, and why don't we just embed the whole document as one piece?",
+      "follow_ups": [
+        "What goes wrong if the chunks are too large?",
+        "Why do people add overlap between chunks?"
+      ],
+      "time_budget_sec": 180,
+      "correction_template": "A chunk is a small fragment of a document that we embed separately and store in the index. We don't embed a whole document because the embedding of a large text gets 'blurry' and matches a specific question worse, and only a limited number of tokens fit in the prompt anyway. If chunks are too large, a lot of irrelevant text ends up in the context and precision drops; too small, and you lose coherence. Overlap (a few shared sentences between neighbouring chunks) keeps a thought from being cut off at the chunk boundary."
+    },
+    {
+      "id": "q3",
+      "text": "When a user asks a question, how does the system find the right chunks? Walk me through the steps.",
+      "follow_ups": [
+        "What exactly is compared between the question and the chunks?",
+        "Why take top-k results instead of just the single best one?"
+      ],
+      "time_budget_sec": 180,
+      "correction_template": "The user's question is turned into a vector by the same embedding model, and then the vector database searches for chunks whose vectors are closest — usually by cosine similarity. What's compared isn't the literal text but the semantic meaning encoded as vectors, so relevant fragments are found even when they use different words. We take top-k (several of the best) rather than one, because the answer is often assembled from multiple places, and a single chunk may be incomplete or slightly off."
+    },
+    {
+      "id": "q4",
+      "text": "Last one. Our system retrieves the correct context, but the model still makes up facts. Where could the problem be, and where would you start looking?",
+      "follow_ups": [
+        "How would you measure this instead of guessing?",
+        "What is grounding, and how does it help here?"
+      ],
+      "time_budget_sec": 240,
+      "correction_template": "First, separate two different problems: retrieval (did we find the right context?) and generation (does the model actually rely on that context?). If the context is correct but there are still hallucinations, the problem is in generation: the prompt should explicitly require answering only from the provided context and adding citations to sources (grounding). Measure this with a faithfulness/groundedness metric — how well the claims in the answer are supported by the context (for example, with RAGAS) — rather than eyeballing it."
+    }
+  ],
+  "wrap_up": "Nice work — you made it through all four topics. Quick recap: you've got a solid grip on the overall RAG idea and on chunking, but the difference between retrieval and generation is worth revisiting — that's where most real bugs hide. Review the faithfulness part and you'll be fully confident. Thanks for the session!"
+}

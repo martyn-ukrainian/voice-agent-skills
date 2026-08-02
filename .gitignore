@@ -1,0 +1,21 @@
+# env / secrets
+.env
+*.env
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+uv.lock
+
+# transcripts / session output
+transcripts/
+skills/voice-agent/template/transcripts/
+
+# macOS
+.DS_Store
