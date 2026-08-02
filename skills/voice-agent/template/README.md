@@ -26,10 +26,12 @@ from cutting you off mid-thought.
 | `--flow <name>` | build the system prompt from `flows/<name>.json` |
 | `--system-prompt "..."` | manual system prompt |
 | `--voice-id <id>` | Cartesia voice id (default baked into the file) |
-| `--lang en` | session language — ISO code (`en` default, `uk`, `es`, `fr`, …) |
+| `--lang en` | session language — ISO code (`en` default, `uk`, `es`, `fr`, …). Env: `SESSION_LANG` |
 | `--lang multi` | auto-detect language (`nova-3`); the bot replies in the user's language |
-| `--trigger <word>` | override the turn-end trigger word (default: per-language, `over` for English) |
-| `--free-vad` | disable the trigger — the turn ends on a pause |
+| `--trigger <word>` | override the turn-end trigger word (default: per-language, `over` for English). Env: `TRIGGER_WORD` |
+| `--turn trigger\|vad` | turn-taking mode (trigger word vs natural pause). Env: `TURN_MODE` |
+| `--free-vad` | alias for `--turn vad` |
+| `--voice-id <id>` | override the TTS voice for this run |
 | `--session-id`, `--transcript-dir` | control transcript output |
 
 ## Read the conversation live
@@ -40,6 +42,25 @@ it to a file and any agent/script can read the dialogue in real time:
 ```bash
 uv run python bot_cli.py --flow X > /tmp/voice-live.log 2>&1
 ```
+
+## Providers (STT / LLM / TTS)
+
+Providers are chosen in `.env`, not in code — `providers.py` has one factory per
+stage and lazily imports only the selected backend:
+
+```
+STT_PROVIDER=deepgram
+LLM_PROVIDER=openai            # any OpenAI-compatible API via OPENAI_BASE_URL
+TTS_PROVIDER=cartesia          # or elevenlabs
+```
+
+- **Different LLM / model:** set `OPENAI_MODEL`, or point `OPENAI_BASE_URL` at an
+  OpenAI-compatible endpoint (OpenRouter, Together, local vLLM) — no code change.
+- **ElevenLabs TTS:** `TTS_PROVIDER=elevenlabs` + `ELEVENLABS_API_KEY` +
+  `ELEVENLABS_VOICE_ID`.
+- **Add a new provider:** add a branch to the matching factory in `providers.py`
+  (import the pipecat service inside the branch), add its env vars here, and add
+  any needed extra to `pyproject.toml`. `bot_cli.py` doesn't change.
 
 ## Flow files
 
@@ -59,6 +80,7 @@ volume.
 | File | Purpose |
 |---|---|
 | `bot_cli.py` | the agent: LocalAudioTransport → STT → LLM → TTS + processors |
+| `providers.py` | STT / LLM / TTS factories selected via `*_PROVIDER` env vars |
 | `build_prompt.py` | flow JSON → system prompt |
 | `transcript.py` | saving the transcript (JSON + VTT) |
 | `pyproject.toml` | dependencies (CLI-only) |

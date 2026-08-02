@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.2",
     "python-dotenv>=1.0.0",
-    "pipecat-ai[cartesia,deepgram,openai,silero,local]==0.0.100",
+    "pipecat-ai[cartesia,deepgram,elevenlabs,openai,silero,local]==0.0.100",
 ]
 
 [project.optional-dependencies]

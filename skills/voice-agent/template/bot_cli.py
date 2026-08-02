@@ -45,42 +45,23 @@ from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.transcript_processor import TranscriptProcessor
-from pipecat.services.cartesia.tts import CartesiaTTSService
-from pipecat.services.deepgram.stt import DeepgramSTTService
-from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.transcriptions.language import Language
 from pipecat.transports.local.audio import (
     LocalAudioTransport,
     LocalAudioTransportParams,
 )
-from deepgram import LiveOptions
 
 from build_prompt import build_prompt
+from providers import build_llm, build_stt, build_tts
 from transcript import TranscriptCollector
 
 load_dotenv()
 
-# Cartesia voice id (sonic-3). sonic-3 voices are multilingual — override with
-# --voice-id if you want a different one.
-DEFAULT_VOICE_ID = "05ffab9c-d380-4909-8375-cd12f59238c3"
 DEFAULT_SYSTEM_PROMPT = (
     "You are a friendly voice companion. The user started a session without a "
     "flow file. Greet them, briefly ask what they'd like to talk about, and "
     "keep a natural conversation going. For a structured interview or lesson, "
     "suggest starting from a flow: '--flow <flow-name>'."
 )
-
-# ISO 639-1 code -> pipecat Language enum, for STT and TTS.
-LANG_ENUM = {
-    "en": Language.EN,
-    "uk": Language.UK,
-    "es": Language.ES,
-    "fr": Language.FR,
-    "de": Language.DE,
-    "it": Language.IT,
-    "pt": Language.PT,
-    "pl": Language.PL,
-}
 
 # Human-readable names, used in the "speak <language>" instruction.
 LANG_NAMES = {
@@ -307,54 +288,15 @@ async def run_cli(
         )
     )
 
-    if language_mode == "multi":
-        stt_opts = LiveOptions(
-            model="nova-3",
-            language="multi",
-            smart_format=True,
-            punctuate=True,
-            interim_results=True,
-            encoding="linear16",
-            channels=1,
-            sample_rate=16000,
-        )
-        tts_params = CartesiaTTSService.InputParams()
-        lang_instruction = (
-            "IMPORTANT: reply in the same language the user just spoke."
-        )
-    else:
-        lang_enum = LANG_ENUM.get(language_mode, Language.EN)
-        # nova-3 has the best English; nova-2-general has the widest language coverage.
-        stt_model = "nova-3" if language_mode == "en" else "nova-2-general"
-        stt_opts = LiveOptions(
-            model=stt_model,
-            language=lang_enum.value,
-            smart_format=True,
-            punctuate=True,
-            interim_results=True,
-            encoding="linear16",
-            channels=1,
-            sample_rate=16000,
-        )
-        tts_params = CartesiaTTSService.InputParams(language=lang_enum)
-        lang_instruction = f"Speak {LANG_NAMES.get(language_mode, language_mode)}."
+    # Providers are chosen by *_PROVIDER env vars — see providers.py.
+    stt = build_stt(language_mode)
+    llm = build_llm()
+    tts = build_tts(language_mode, voice_id)
 
-    stt = DeepgramSTTService(
-        api_key=os.environ["DEEPGRAM_API_KEY"],
-        audio_passthrough=True,
-        live_options=stt_opts,
-    )
-    llm = OpenAILLMService(
-        api_key=os.environ["OPENAI_API_KEY"],
-        model=os.getenv("OPENAI_MODEL", "gpt-4.1"),
-        params=OpenAILLMService.InputParams(temperature=0.4),
-    )
-    tts = CartesiaTTSService(
-        api_key=os.environ["CARTESIA_API_KEY"],
-        voice_id=voice_id,
-        model="sonic-3",
-        params=tts_params,
-    )
+    if language_mode == "multi":
+        lang_instruction = "IMPORTANT: reply in the same language the user just spoke."
+    else:
+        lang_instruction = f"Speak {LANG_NAMES.get(language_mode, language_mode)}."
 
     context = OpenAILLMContext(
         messages=[
@@ -426,23 +368,33 @@ def main():
         "--flow", help="flow name (without .json), e.g. tutor_biological-neurons_medium"
     )
     ap.add_argument("--system-prompt", help="manual system prompt (if no flow)")
-    ap.add_argument("--voice-id", default=DEFAULT_VOICE_ID)
+    ap.add_argument(
+        "--voice-id",
+        default=None,
+        help="TTS voice id (default: per-provider env, e.g. CARTESIA_VOICE_ID)",
+    )
     ap.add_argument(
         "--lang",
-        default="en",
-        help="session language: an ISO code (en, uk, es, fr, ...) or 'multi' for auto-detect",
+        default=os.getenv("SESSION_LANG", "en"),
+        help="session language: an ISO code (en, uk, es, fr, ...) or 'multi' for auto-detect. Env: SESSION_LANG",
     )
     ap.add_argument(
         "--trigger",
-        default=None,
-        help="turn-end trigger word (default: per-language, 'over' for English)",
+        default=os.getenv("TRIGGER_WORD"),
+        help="turn-end trigger word (default: per-language, 'over' for English). Env: TRIGGER_WORD",
+    )
+    ap.add_argument(
+        "--turn",
+        choices=["trigger", "vad"],
+        default=os.getenv("TURN_MODE", "trigger"),
+        help="turn-taking: 'trigger' (say a word to end the turn) or 'vad' (end on a natural pause). Env: TURN_MODE",
     )
     ap.add_argument("--session-id", default=None)
     ap.add_argument("--transcript-dir", default=str(BOT_DIR / "transcripts"))
     ap.add_argument(
         "--free-vad",
         action="store_true",
-        help="Disable the mandatory trigger word — VAD closes the turn on a pause as usual.",
+        help="alias for --turn vad.",
     )
     args = ap.parse_args()
 
@@ -462,6 +414,10 @@ def main():
     else:
         triggers = DEFAULT_TRIGGERS.get(args.lang, ("over",))
 
+    # Turn-taking: trigger word (default) or natural VAD pause. --free-vad is an
+    # alias for --turn vad.
+    require_trigger = args.turn == "trigger" and not args.free_vad
+
     session_id = (
         args.session_id
         or f"cli-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -477,10 +433,16 @@ def main():
         f"[SYSTEM] session={session_id} flow={args.flow or 'manual'} lang={args.lang}",
         flush=True,
     )
-    print(
-        f"[SYSTEM] speak into the mic; say '{triggers[0]}' to end your turn",
-        flush=True,
-    )
+    if require_trigger:
+        print(
+            f"[SYSTEM] speak into the mic; say '{triggers[0]}' to end your turn",
+            flush=True,
+        )
+    else:
+        print(
+            "[SYSTEM] speak into the mic; pause to end your turn (VAD mode)",
+            flush=True,
+        )
 
     asyncio.run(
         run_cli(
@@ -490,7 +452,7 @@ def main():
             triggers=triggers,
             session_id=session_id,
             transcript_dir=args.transcript_dir,
-            require_trigger=not args.free_vad,
+            require_trigger=require_trigger,
         )
     )
 
