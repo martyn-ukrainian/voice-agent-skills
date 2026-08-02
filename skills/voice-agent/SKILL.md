@@ -20,6 +20,37 @@ and speakers via Pipecat's `LocalAudioTransport`. The transcript is printed to
 stdout (`[USER] ...` / `[ASSISTANT] ...`), so a coding agent can watch the
 conversation live by redirecting output to a file.
 
+## Running the live session — launch it, don't interrogate
+
+When the user wants to talk to the agent, and you're on a machine that shares
+their audio (a local machine — the normal case), **launch it yourself in the
+background** and let them talk to it directly; then review the saved transcript.
+A background process started here drives the same physical mic and speakers
+(verified: `[DIAG] audio: N frames` with a nonzero peak, and `bot STARTED
+speaking`). Only hand the user a command to run themselves when you genuinely
+cannot reach their audio (e.g. a remote/headless shell) — then prefer the `!`
+prefix (`!voice --flow ...`) so it runs in their own terminal.
+
+```bash
+# launch, then read the transcript to follow along / review afterwards
+voice --flow <name> --lang <code> > /tmp/voice-live.log 2>&1 &
+```
+
+Behaviour rules (all sessions):
+
+- **Assume it's set up. Do NOT preflight-check** deps, keys, `uv`, or install
+  state, and don't ask "is it installed?". If something is missing the command
+  **fails with a clear error** — react to that actual error, never verify "just
+  in case".
+- **Never read or print `.env`** — it holds live secret keys. Its existence is
+  all you need; do not inspect its contents.
+- Keep the handoff **terse**: launch (or one command) plus at most a couple of
+  one-line tips (headphones; `[DIAG] 0 frames` = wrong/silent mic). No wall of
+  text each time.
+- The live talking is the user's — you can't speak or listen for them. Launch,
+  let them talk, then read the transcript to review; stop the process when they
+  say they're done.
+
 ## When to use
 
 - "build me a voice agent I can talk to in the terminal"
