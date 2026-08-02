@@ -54,7 +54,10 @@ from build_prompt import build_prompt
 from providers import build_llm, build_stt, build_tts
 from transcript import TranscriptCollector
 
-load_dotenv()
+# Load .env from the agent's own directory, not the caller's cwd — so the same
+# install works when copied into a project AND when run as a global `voice`
+# command from any directory. See "Global / multi-project install" in SKILL.md.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a friendly voice companion. The user started a session without a "

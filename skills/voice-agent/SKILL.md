@@ -89,6 +89,79 @@ uv run python bot_cli.py --flow X > /tmp/voice-live.log 2>&1
 # then tail/read /tmp/voice-live.log
 ```
 
+## Two deployment modes
+
+The same template supports both — pick based on what the user asks for:
+
+1. **Per-project** (default of "Setup steps" above): copy into a repo's `voice/`
+   folder. Keys, flows, and transcripts live with that project. Run from inside
+   `voice/`.
+2. **Global / multi-project**: one permanent install, callable as a `voice`
+   command from **any** directory. Use this when the user wants "an agent I can
+   talk to from anywhere", not a copy per repo.
+
+## Global / multi-project install
+
+Give the agent one permanent **home** (code + `.env` + deps + `flows/` +
+`transcripts/`) and a thin `voice` command on `PATH` that runs it from wherever
+the user calls it.
+
+```bash
+# 1. Home for the agent (stable location, independent of any project)
+HOME_DIR="$HOME/.local/share/voice-agent"
+mkdir -p "$HOME_DIR"
+cp -R skills/voice-agent/template/. "$HOME_DIR"/     # or the installed template dir
+
+# 2. Deps + keys (once)
+cd "$HOME_DIR" && uv sync
+cp .env.example .env        # then fill in the provider keys
+
+# 3. The `voice` command on PATH — note it does NOT cd into the home dir
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/voice" <<'EOF'
+#!/usr/bin/env bash
+# Global voice agent — runs from any directory.
+HOME_DIR="$HOME/.local/share/voice-agent"
+exec uv run --project "$HOME_DIR" python "$HOME_DIR/bot_cli.py" "$@"
+EOF
+chmod +x "$HOME/.local/bin/voice"
+# ensure ~/.local/bin is on PATH (add to shell rc if missing)
+```
+
+Then, from **any** folder:
+
+```bash
+voice --flow tutor_rag_medium --lang en
+voice --system-prompt "You are a friendly companion." --lang en
+```
+
+### Two things that make "run from anywhere" actually work
+
+These are load-bearing — a naive wrapper breaks in non-obvious ways:
+
+1. **`.env` is loaded from the script's own directory, not the caller's cwd.**
+   `bot_cli.py` uses `load_dotenv(Path(__file__).resolve().parent / ".env")`
+   (not bare `load_dotenv()`), so keys are found no matter where `voice` is
+   invoked. `BOT_DIR`, `FLOWS_DIR`, and the default transcript dir are already
+   anchored to `__file__`, so flows and transcripts also resolve to the home,
+   not the caller's cwd.
+2. **The wrapper must NOT `cd` into the home dir — run the script by absolute
+   path from the caller's cwd.** If cwd equals the script's own directory, that
+   directory gets shadowed on Python's import path, and some installed packages
+   refuse to import when their own folder is thus shadowed (observed with
+   `nltk`'s `inisec.py` blocking `regex`), aborting startup. Empirically: a
+   neutral cwd + absolute script path works with no hacks; `cd`-into-home
+   triggers the block. `uv run --project "$HOME_DIR" python "$HOME_DIR/bot_cli.py"`
+   keeps the caller's cwd and passes an absolute path — do it this way.
+
+### Flows and transcripts in global mode
+
+- Flows resolve to `$HOME_DIR/flows/` (that's where `--flow <name>` looks). When
+  generating a flow with the `voice-agent-flow` skill for the global agent,
+  write it into `$HOME_DIR/flows/`, not a project folder.
+- Transcripts default to `$HOME_DIR/transcripts/` (a central store). Pass
+  `--transcript-dir` to redirect per session.
+
 ## Key behaviours to explain to the user
 
 - **Turn-taking is push-to-talk by default.** A turn ends only when the user

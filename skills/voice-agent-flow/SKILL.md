@@ -36,8 +36,10 @@ and assembles the agent's system prompt.
    every question MUST include a `correction_template` (the correct answer, so
    the tutor can give feedback).
 4. **Name the file** `{mode}_{topic}_{difficulty}.json` and write it into the
-   agent's `flows/` directory (e.g. `voice/flows/`). Ask the user to confirm the
-   destination if unclear.
+   agent's `flows/` directory. For a **per-project** agent that's `voice/flows/`;
+   for a **global** agent it's `$HOME/.local/share/voice-agent/flows/` (see
+   "Global / multi-project install" in the `voice-agent` skill). Ask the user to
+   confirm the destination if unclear.
 5. **Tell the user how to run it** (pass the flow's language via `--lang`):
    `uv run python bot_cli.py --flow {mode}_{topic}_{difficulty} --lang en`
 

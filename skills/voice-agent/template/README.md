@@ -34,6 +34,24 @@ from cutting you off mid-thought.
 | `--voice-id <id>` | override the TTS voice for this run |
 | `--session-id`, `--transcript-dir` | control transcript output |
 
+## Run from anywhere (global install)
+
+This folder works both copied into a project **and** as a single global agent
+callable from any directory. `.env` is loaded from **this** directory (not your
+current one), and `flows/` + `transcripts/` resolve here too — so a `voice`
+command that runs `bot_cli.py` by absolute path works from any cwd:
+
+```bash
+# ~/.local/bin/voice
+HOME_DIR="$HOME/.local/share/voice-agent"
+exec uv run --project "$HOME_DIR" python "$HOME_DIR/bot_cli.py" "$@"
+```
+
+Important: the wrapper must **not** `cd` into the home dir — run the script by
+absolute path from your current cwd. (If cwd equals the script's own directory,
+that dir shadows Python's import path and some packages — e.g. `nltk` — refuse
+to import, aborting startup.)
+
 ## Read the conversation live
 
 The transcript is printed to stdout (`[USER] ...` / `[ASSISTANT] ...`). Redirect
